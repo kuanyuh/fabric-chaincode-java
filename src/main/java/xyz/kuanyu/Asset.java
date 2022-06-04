@@ -14,18 +14,18 @@ public class Asset {
     String docType; //docType is used to distinguish the various types of objects in state database
 
     @Property
-    Integer id;
+    String id;
 
     @Property
     String color;
 
     @Property
-    String size;
+    Integer size;
 
     @Property
     String owner;
 
     @Property
-    String appraisedValue;
+    Integer appraisedValue;
 
 }
