@@ -70,7 +70,7 @@ public class AssetContract implements ContractInterface {
         ChaincodeStub stub = ctx.getStub();
         String assetState = stub.getStringState(assetID);
         if (StringUtils.isBlank(assetState)){
-            String errorMessage = String.format("asset %s does not exist", key);
+            String errorMessage = String.format("asset %s does not exist", assetID);
             System.out.println(errorMessage);
             throw new ChaincodeException(errorMessage);
         }
@@ -80,16 +80,17 @@ public class AssetContract implements ContractInterface {
     @Transaction
     public Asset deleteAsset(final Context ctx, String assetID){
         ChaincodeStub stub = ctx.getStub();
-        String catState = stub.getStringState(assetID);
+        String assetState = stub.getStringState(assetID);
 
-        if (StringUtils.isBlank(catState)) {
-            String errorMessage = String.format("asset %s does not exist", key);
+        if (StringUtils.isBlank(assetState)) {
+            String errorMessage = String.format("asset %s does not exist", assetID);
             System.out.println(errorMessage);
             throw new ChaincodeException(errorMessage);
         }
         stub.delState(assetID);
-        return JSON.parseObject(catState, Asset.class);
+        return JSON.parseObject(assetState, Asset.class);
     }
+
 
     @Transaction
     public void transferAsset(final Context ctx, String assetID, String newOwner){
@@ -97,6 +98,7 @@ public class AssetContract implements ContractInterface {
         asset.owner = newOwner;
         ctx.getStub().putStringState(assetID, JSON.toJSONString(asset));
     }
+
 
     // GetAssetsByRange performs a range query based on the start and end keys provided.
     // Read-only function results are not typically submitted to ordering. If the read-only
