@@ -3,6 +3,8 @@ package xyz.kuanyu.result;
 import lombok.Data;
 import xyz.kuanyu.Asset;
 
+import java.time.Instant;
+
 /**
  * HistoryQueryResult used for returning result of history query
  */
@@ -13,7 +15,7 @@ public class HistoryQueryResult {
 
     String txid;
 
-    String timestamp;
+    Instant timestamp;
 
     Boolean isDelete;
 }

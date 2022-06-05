@@ -26,6 +26,6 @@ public class Asset {
     String owner;
 
     @Property
-    Integer appraisedValue;
+    Integer value;
 
 }

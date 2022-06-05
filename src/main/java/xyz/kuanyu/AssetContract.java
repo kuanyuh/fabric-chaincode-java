@@ -8,9 +8,12 @@ import org.hyperledger.fabric.contract.ContractInterface;
 import org.hyperledger.fabric.contract.annotation.*;
 import org.hyperledger.fabric.shim.ChaincodeException;
 import org.hyperledger.fabric.shim.ChaincodeStub;
+import org.hyperledger.fabric.shim.ledger.KeyModification;
 import org.hyperledger.fabric.shim.ledger.KeyValue;
 import org.hyperledger.fabric.shim.ledger.QueryResultsIterator;
+import xyz.kuanyu.result.HistoryQueryResult;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -35,7 +38,7 @@ public class AssetContract implements ContractInterface {
     private static String index = "color~name";
 
     @Transaction
-    public Asset createAsset(final Context ctx, String assetID, String color, Integer size, String owner, Integer appraisedValue){
+    public Asset createAsset(final Context ctx, String assetID, String color, Integer size, String owner, Integer value){
         if (assetExists(ctx, assetID)){
             String errorMessage = String.format("asset %s already exists", assetID);
             System.out.println(errorMessage);
@@ -46,22 +49,13 @@ public class AssetContract implements ContractInterface {
                 .setColor(color)
                 .setSize(size)
                 .setOwner(owner)
-                .setAppraisedValue(appraisedValue);
+                .setValue(value);
         String json = JSON.toJSONString(asset);
 
         ChaincodeStub stub = ctx.getStub();
         stub.putStringState(assetID, json);
         stub.setEvent("createAssetEvent", org.apache.commons.codec.binary.StringUtils.getBytesUtf8(json));
 
-        //  Create an index to enable color-based range queries, e.g. return all blue assets.
-        //  An 'index' is a normal key-value entry in the ledger.
-        //  The key is a composite key, with the elements that you want to range query on listed first.
-        //  In our case, the composite key is based on indexName~color~name.
-        //  This will enable very efficient state range queries based on composite keys matching indexName~color~*
-        stub.createCompositeKey(index, new String[]{asset.color,asset.id});
-        //  Save index entry to world state. Only the key name is needed, no need to store a duplicate copy of the asset.
-        //  Note - passing a 'nil' value will effectively delete the key from state, therefore we pass null character as value
-        byte[] value = new byte[0x00];
         return asset;
     }
 
@@ -91,6 +85,40 @@ public class AssetContract implements ContractInterface {
         return JSON.parseObject(assetState, Asset.class);
     }
 
+    @Transaction
+    public Asset updateAsset(final Context ctx, String assetID, String color, Integer size, String owner, Integer value){
+        ChaincodeStub stub = ctx.getStub();
+        String assetState = stub.getStringState(assetID);
+
+        if (StringUtils.isBlank(assetState)) {
+            String errorMessage = String.format("asset %s does not exist", assetID);
+            System.out.println(errorMessage);
+            throw new ChaincodeException(errorMessage);
+        }
+
+        Asset asset = new Asset()
+                .setDocType("asset")
+                .setId(assetID)
+                .setColor(color)
+                .setSize(size)
+                .setOwner(owner)
+                .setValue(value);
+        String json = JSON.toJSONString(asset);
+        stub.putStringState(assetID, json);
+        return asset;
+    }
+
+    @Transaction
+    public boolean transfer(final Context ctx, String assetIDFrom, String assetIDTo, Integer value){
+        Asset assetFrom = readAsset(ctx, assetIDFrom);
+        Asset assetTo = readAsset(ctx, assetIDTo);
+        if (assetFrom.getValue() < value){
+            return false;
+        }
+        assetFrom.setValue(assetFrom.getValue()-value);
+        assetTo.setValue(assetTo.getValue()+value);
+        return true;
+    }
 
     @Transaction
     public void transferAsset(final Context ctx, String assetID, String newOwner){
@@ -100,14 +128,6 @@ public class AssetContract implements ContractInterface {
     }
 
 
-    // GetAssetsByRange performs a range query based on the start and end keys provided.
-    // Read-only function results are not typically submitted to ordering. If the read-only
-    // results are submitted to ordering, or if the query is used in an update transaction
-    // and submitted to ordering, then the committing peers will re-execute to guarantee that
-    // result sets are stable between endorsement time and commit time. The transaction is
-    // invalidated by the committing peers if the result set has changed between endorsement
-    // time and commit time.
-    // Therefore, range queries are a safe option for performing update transactions based on query results.
     @Transaction
     public List<Asset> getAssetsByRange(Context ctx, String startKey, String endKey){
         QueryResultsIterator<KeyValue> stateByRange = ctx.getStub().getStateByRange(startKey, endKey);
@@ -126,19 +146,30 @@ public class AssetContract implements ContractInterface {
         return assets;
     }
 
-    // TransferAssetByColor will transfer assets of a given color to a certain new owner.
-    // Uses GetStateByPartialCompositeKey (range query) against color~name 'index'.
-    // Committing peers will re-execute range queries to guarantee that result sets are stable
-    // between endorsement time and commit time. The transaction is invalidated by the
-    // committing peers if the result set has changed between endorsement time and commit time.
-    // Therefore, range queries are a safe option for performing update transactions based on query results.
-    // Example: GetStateByPartialCompositeKey/RangeQuery
-
-
     @Transaction
     public boolean assetExists(Context ctx, String assetID) {
         byte[] state = ctx.getStub().getState(assetID);
         return state != null;
+    }
+
+    @Transaction
+    public List<HistoryQueryResult> getAssetHistory(final Context ctx, String assetID){
+        QueryResultsIterator<KeyModification> historyForKey = ctx.getStub().getHistoryForKey(assetID);
+        Iterator<KeyModification> iterator = historyForKey.iterator();
+        List<HistoryQueryResult> records = new ArrayList<>();
+        while (iterator.hasNext()) {
+            KeyModification next = iterator.next();
+            Asset asset = JSON.parseObject(next.getStringValue(), Asset.class);
+            Instant timestamp = next.getTimestamp();
+
+            HistoryQueryResult record = new HistoryQueryResult();
+            record.setTxid(next.getTxId());
+            record.setTimestamp(timestamp);
+            record.setRecord(asset);
+            record.setIsDelete(next.isDeleted());
+            records.add(record);
+        }
+        return records;
     }
 
 
@@ -148,12 +179,14 @@ public class AssetContract implements ContractInterface {
         ChaincodeStub stub = ctx.getStub();
         for (int i = 0; i < 5; i++) {
             Asset asset = new Asset()
-                    .setId(i)
-                    .setOwner("hky"+i);
+                    .setDocType("asset")
+                    .setId("hky"+1)
+                    .setOwner("hky"+i)
+                    .setColor("blue")
+                    .setSize(300)
+                    .setValue(100);
             stub.putStringState(asset.getOwner(), JSON.toJSONString(asset));
         }
     }
-
-
 
 }
