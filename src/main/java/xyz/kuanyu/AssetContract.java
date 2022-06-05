@@ -117,6 +117,8 @@ public class AssetContract implements ContractInterface {
         }
         assetFrom.setValue(assetFrom.getValue()-value);
         assetTo.setValue(assetTo.getValue()+value);
+        ctx.getStub().putStringState(assetIDFrom, JSON.toJSONString(assetFrom));
+        ctx.getStub().putStringState(assetIDTo, JSON.toJSONString(assetTo));
         return true;
     }
 
