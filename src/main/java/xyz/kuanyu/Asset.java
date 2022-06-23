@@ -17,7 +17,7 @@ public class Asset {
     String id;
 
     @Property
-    String color;
+    String name;
 
     @Property
     Integer size;

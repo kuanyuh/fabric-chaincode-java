@@ -35,10 +35,10 @@ import java.util.List;
 @Log
 public class AssetContract implements ContractInterface {
 
-    private static String index = "color~name";
+    private static String index = "name~";
 
     @Transaction
-    public Asset createAsset(final Context ctx, String assetID, String color, Integer size, String owner, Integer value){
+    public Asset createAsset(final Context ctx, String assetID, String name, Integer size, String owner, Integer value){
         if (assetExists(ctx, assetID)){
             String errorMessage = String.format("asset %s already exists", assetID);
             System.out.println(errorMessage);
@@ -46,7 +46,7 @@ public class AssetContract implements ContractInterface {
         Asset asset = new Asset()
                 .setDocType("asset")
                 .setId(assetID)
-                .setColor(color)
+                .setName(name)
                 .setSize(size)
                 .setOwner(owner)
                 .setValue(value);
@@ -86,7 +86,7 @@ public class AssetContract implements ContractInterface {
     }
 
     @Transaction
-    public Asset updateAsset(final Context ctx, String assetID, String color, Integer size, String owner, Integer value){
+    public Asset updateAsset(final Context ctx, String assetID, String name, Integer size, String owner, Integer value){
         ChaincodeStub stub = ctx.getStub();
         String assetState = stub.getStringState(assetID);
 
@@ -99,7 +99,7 @@ public class AssetContract implements ContractInterface {
         Asset asset = new Asset()
                 .setDocType("asset")
                 .setId(assetID)
-                .setColor(color)
+                .setName(name)
                 .setSize(size)
                 .setOwner(owner)
                 .setValue(value);
@@ -129,7 +129,6 @@ public class AssetContract implements ContractInterface {
         ctx.getStub().putStringState(assetID, JSON.toJSONString(asset));
     }
 
-
     @Transaction
     public List<Asset> getAssetsByRange(Context ctx, String startKey, String endKey){
         QueryResultsIterator<KeyValue> stateByRange = ctx.getStub().getStateByRange(startKey, endKey);
@@ -152,6 +151,23 @@ public class AssetContract implements ContractInterface {
     public boolean assetExists(Context ctx, String assetID) {
         byte[] state = ctx.getStub().getState(assetID);
         return state != null;
+    }
+
+    @Transaction
+    public List<Asset> queryAssetsByOwner(Context ctx, String owner){
+        String query = String.format("{\"selector\":{\"docType\":\"asset\",\"owner\":\"%s\"}}", owner);
+        return getQueryResultForQueryString(ctx, query);
+    }
+
+    @Transaction
+    public List<Asset> queryAssets(Context ctx, String queryString){
+        return getQueryResultForQueryString(ctx, queryString);
+    }
+
+    @Transaction
+    public List<Asset> getQueryResultForQueryString(Context ctx, String queryString){
+        QueryResultsIterator<KeyValue> resultsIterator = ctx.getStub().getQueryResult(queryString);
+        return constructQueryResponseFromIterator(resultsIterator);
     }
 
     @Transaction
@@ -184,7 +200,7 @@ public class AssetContract implements ContractInterface {
                     .setDocType("asset")
                     .setId("hky"+1)
                     .setOwner("hky"+i)
-                    .setColor("blue")
+                    .setName("blue")
                     .setSize(300)
                     .setValue(100);
             stub.putStringState(asset.getOwner(), JSON.toJSONString(asset));
