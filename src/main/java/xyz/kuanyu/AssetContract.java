@@ -130,13 +130,13 @@ public class AssetContract implements ContractInterface {
     }
 
     @Transaction
-    public List<Asset> getAssetsByRange(Context ctx, String startKey, String endKey){
+    public Asset[] getAssetsByRange(Context ctx, String startKey, String endKey){
         QueryResultsIterator<KeyValue> stateByRange = ctx.getStub().getStateByRange(startKey, endKey);
         return constructQueryResponseFromIterator(stateByRange);
     }
 
     // constructQueryResponseFromIterator constructs a slice of assets from the resultsIterator
-    private List<Asset> constructQueryResponseFromIterator(QueryResultsIterator<KeyValue> stateByRange) {
+    private Asset[] constructQueryResponseFromIterator(QueryResultsIterator<KeyValue> stateByRange) {
         List<Asset> assets = new ArrayList<>();
         Iterator<KeyValue> iterator = stateByRange.iterator();
         while (iterator.hasNext()) {
@@ -144,7 +144,7 @@ public class AssetContract implements ContractInterface {
             Asset asset = JSON.parseObject(next.getStringValue(), Asset.class);
             assets.add(asset);
         }
-        return assets;
+        return (Asset[]) assets.toArray();
     }
 
     @Transaction
@@ -154,24 +154,24 @@ public class AssetContract implements ContractInterface {
     }
 
     @Transaction
-    public List<Asset> queryAssetsByOwner(Context ctx, String owner){
+    public Asset[] queryAssetsByOwner(Context ctx, String owner){
         String query = String.format("{\"selector\":{\"docType\":\"asset\",\"owner\":\"%s\"}}", owner);
         return getQueryResultForQueryString(ctx, query);
     }
 
     @Transaction
-    public List<Asset> queryAssets(Context ctx, String queryString){
+    public Asset[] queryAssets(Context ctx, String queryString){
         return getQueryResultForQueryString(ctx, queryString);
     }
 
     @Transaction
-    public List<Asset> getQueryResultForQueryString(Context ctx, String queryString){
+    public Asset[] getQueryResultForQueryString(Context ctx, String queryString){
         QueryResultsIterator<KeyValue> resultsIterator = ctx.getStub().getQueryResult(queryString);
         return constructQueryResponseFromIterator(resultsIterator);
     }
 
     @Transaction
-    public List<HistoryQueryResult> getAssetHistory(final Context ctx, String assetID){
+    public HistoryQueryResult[] getAssetHistory(final Context ctx, String assetID){
         QueryResultsIterator<KeyModification> historyForKey = ctx.getStub().getHistoryForKey(assetID);
         Iterator<KeyModification> iterator = historyForKey.iterator();
         List<HistoryQueryResult> records = new ArrayList<>();
@@ -187,7 +187,7 @@ public class AssetContract implements ContractInterface {
             record.setIsDelete(next.isDeleted());
             records.add(record);
         }
-        return records;
+        return (HistoryQueryResult[]) records.toArray();
     }
 
 
